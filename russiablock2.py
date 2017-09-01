@@ -324,8 +324,7 @@ def sysInit():
     pg.mouse.set_visible(False)
 
     # 游戏全局变量初始化
-    defaultFont = pg.font.Font("yh.ttf", 16)  # yh.ttf这个字体文件请自行上网搜索下载，如果找不到就随便用个ttf格式字体文件替换一下。
-    #defaultFont = pg.font.Font("res/font/yh.ttf", 16)  # yh.ttf这个字体文件请自行上网搜索下载，如果找不到就随便用个ttf格式字体文件替换一下。
+    defaultFont = pg.font.Font(None, 24)
     nowBlock = None
     nextBlock = None
     gameOver = False
@@ -673,11 +672,11 @@ def drawStage(drawScreen):
 
     # 特殊游戏状态的输出
     if gameOver:
-        printTxt_2("GAME OVER", 230 + X_2_ADD /2, 200, defaultFont, backSurface, fontColor)
-        printTxt_2("<PRESS RETURN TO REPLAY>", 200 + X_2_ADD /2, 260, defaultFont, backSurface, fontColor)
+        printTxt_2("GAME OVER", 190 + X_2_ADD /2, 200, defaultFont, backSurface, fontColor)
+        printTxt_2("<PRESS RETURN TO REPLAY>", 130 + X_2_ADD /2, 260, defaultFont, backSurface, fontColor)
     if pause:
-        printTxt_2("Game pausing", 230 + X_2_ADD /2 , 200, defaultFont, backSurface, fontColor)
-        printTxt_2("<PRESS RETURN TO CONTINUE>", 200 + X_2_ADD /2, 260, defaultFont, backSurface, fontColor)
+        printTxt_2("Game pausing", 190 + X_2_ADD /2 , 200, defaultFont, backSurface, fontColor)
+        printTxt_2("<PRESS RETURN TO CONTINUE>", 130 + X_2_ADD /2, 260, defaultFont, backSurface, fontColor)
 
 #cxx  left frame, 2nd user's frame
     baseRect = 0 , 0, blockWidth * maxBlockWidth + 1, blockHeight * maxBlockHeight + 1  # 堆叠区方框
