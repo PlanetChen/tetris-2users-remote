@@ -25,7 +25,8 @@ import sys
 import pygame as pg
 import logging
 from pygame.locals import *
-
+from socket import *
+import threading
 
 '''
 常量声明
@@ -33,6 +34,8 @@ from pygame.locals import *
 EMPTY_CELL = 0  # 空区标识，表示没有方块
 FALLING_BLOCK = 1  # 下落中的方块标识，也就是活动方块。
 STATIC_BLOCK = 2  # 固实方块标识
+
+KEYARROWEVENT = USEREVENT + 1
 
 #cxx
 X_2_ADD = (500 + 20) #FROM 1 USER TO 2 USERS.
@@ -91,6 +94,15 @@ gameOver_2 = False  # 游戏结束标志
 #pause_2 = False  # 游戏暂停标志
 #cxx
 
+cli = None
+svr = None
+
+randint_2_next_1_1 = 0
+randint_2_next_1_2 = 0
+randint_2_next_2_1 = 0
+randint_2_next_2_2 = 0
+
+iamready = 0
 
 def printTxt(content, x, y, font, screen, color=(255, 255, 255)):
     '''显示文本
@@ -319,7 +331,7 @@ def sysInit():
     pg.init()
     screen = pg.display.set_mode((500 + X_2_ADD, 550))
     backSurface = pg.Surface((screen.get_rect().width, screen.get_rect().height))
-    pg.display.set_caption("block")
+    pg.display.set_caption("Tetris by two computers by UDP")
     clock = pg.time.Clock()
     pg.mouse.set_visible(False)
 
@@ -727,15 +739,23 @@ def process():
     #cxx
     global gameOver_2, nowBlock_2, nextBlock_2, speedBuff_2, backSurface_2, keyBuff_2 #cxx, pause_2
     #cxx
+    global cli
+    global randint1,randint2
 
     if nextBlock is None:
-        nextBlock = blockSprite(random.randint(0, len(blocks) - 1), random.randint(0, 3),
-                                point(maxBlockWidth + 4, maxBlockHeight))
+        randint_next_1_1 = random.randint(0, len(blocks) - 1)
+        randint_next_1_2 = random.randint(0, 3)
+        tmpstr = 'r1/' + str(randint_next_1_1) + '/' + str(randint_next_1_2)
+        cli.sendMsg(tmpstr)
+        nextBlock = blockSprite(randint_next_1_1, randint_next_1_2, point(maxBlockWidth + 4, maxBlockHeight))
     if nowBlock is None:
         nowBlock = nextBlock.clone()
         nowBlock.xy = point(maxBlockWidth // 2, 0)
-        nextBlock = blockSprite(random.randint(0, len(blocks) - 1), random.randint(0, 3),
-                                point(maxBlockWidth + 4, maxBlockHeight))
+        randint_next_2_1 = random.randint(0, len(blocks) - 1)
+        randint_next_2_2 = random.randint(0, 3)
+        tmpstr = 'r2/' + str(randint_next_2_1) + '/' + str(randint_next_2_2)
+        cli.sendMsg(tmpstr)
+        nextBlock = blockSprite(randint_next_2_1, randint_next_2_2, point(maxBlockWidth + 4, maxBlockHeight))
         # 每次生成新的下落方块形状时检测碰撞，如果新的方块形状一出现就发生碰撞，则显然玩家已经没有机会了。
         gameOver = checkDeany(nowBlock)
         # 游戏失败后，要将活动方块形状做固实处理
@@ -744,12 +764,20 @@ def process():
 
     #cxx
     if nextBlock_2 is None:
-        nextBlock_2 = blockSprite_2(random.randint(0, len(blocks_2) - 1), random.randint(0, 3),
+        if iamready == 1:
+            nextBlock_2 = blockSprite_2(randint_2_next_1_1, randint_2_next_1_2,
+                                        point(maxBlockWidth + 4, maxBlockHeight))
+        else:
+            nextBlock_2 = blockSprite_2(random.randint(0, len(blocks_2) - 1), random.randint(0, 3),
                                 point(maxBlockWidth + 4, maxBlockHeight))
     if nowBlock_2 is None:
         nowBlock_2 = nextBlock_2.clone()
         nowBlock_2.xy = point(maxBlockWidth // 2, 0)
-        nextBlock_2 = blockSprite_2(random.randint(0, len(blocks_2) - 1), random.randint(0, 3),
+        if iamready == 1:
+            nextBlock_2 = blockSprite_2(randint_2_next_2_1, randint_2_next_2_2,
+                                        point(maxBlockWidth + 4, maxBlockHeight))
+        else:
+            nextBlock_2 = blockSprite_2(random.randint(0, len(blocks_2) - 1), random.randint(0, 3),
                                 point(maxBlockWidth + 4, maxBlockHeight))
         # 每次生成新的下落方块形状时检测碰撞，如果新的方块形状一出现就发生碰撞，则显然玩家已经没有机会了。
         gameOver_2 = checkDeany_2(nowBlock_2)
@@ -771,14 +799,17 @@ def process():
     第一部分，将退出、暂停、重新开始以及形状变换的操作以敲击事件处理。
     这样做的好处是只对敲击一次键盘做出处理，避免用户按住单一按键后程序反复处理影响操控，特别是形状变换操作，敲击一次键盘换变一次方向，玩家很容易控制。
     '''
+    pg.key.set_repeat()
+
     for event in pg.event.get():
+
         # cxx added
         #msg = "event in pg.event.get type : %s " % str(event.type)
         #logger.warning(msg)
         #cxx
         if event.type == pg.QUIT:
-            sys.exit()
             pg.quit()
+            sys.exit()
         #cxx added
         elif event.type == pg.KEYUP:
             if event.key == pg.K_LEFT or event.key == pg.K_RIGHT or event.key == pg.K_DOWN:
@@ -786,10 +817,21 @@ def process():
             elif event.key == pg.K_a or event.key == pg.K_s or event.key == pg.K_d:
                 keyBuff_2 = None
          #cxx added
+
+        elif event.type == KEYARROWEVENT:
+            if event.key == pg.K_s:
+                tmpBlock_2.xy = point(tmpBlock_2.xy.x, tmpBlock_2.xy.y + 1)
+            elif event.key ==  pg.K_a:
+                tmpBlock_2.xy = point(tmpBlock_2.xy.x - 1, tmpBlock_2.xy.y)
+            elif event.key ==  pg.K_d:
+                tmpBlock_2.xy = point(tmpBlock_2.xy.x + 1, tmpBlock_2.xy.y)
+            elif event.key == pg.K_w:
+                tmpBlock_2.chgDirection(0)
+
         elif event.type == pg.KEYDOWN:
             if event.key == pg.K_ESCAPE:
-                sys.exit()
                 pg.quit()
+                sys.exit()
             elif event.key == pg.K_RETURN:
                 if gameOver:
                     sysInit()
@@ -806,6 +848,7 @@ def process():
                 if event.key == pg.K_SPACE:
                     tmpBlock.chgDirection(1)
                 elif event.key == pg.K_UP:
+                    cli.sendMsg('w')
                     tmpBlock.chgDirection(0)
             #cxx
                 elif event.key == pg.K_TAB:
@@ -824,19 +867,24 @@ def process():
         keys = pg.key.get_pressed()
 
         if keys[K_DOWN]:
-            tmpBlock.xy = point(tmpBlock.xy.x, tmpBlock.xy.y + 1)
-            keyBuff = None
+            if keyBuff != pg.K_DOWN:
+                cli.sendMsg('s')
+                tmpBlock.xy = point(tmpBlock.xy.x, tmpBlock.xy.y + 1)
+                keyBuff = pg.K_DOWN
         elif keys[K_LEFT]:
             if keyBuff != pg.K_LEFT:
                 tmpBlock.xy = point(tmpBlock.xy.x - 1, tmpBlock.xy.y)
                 keyBuff = pg.K_LEFT
+                cli.sendMsg('a')
         elif keys[K_RIGHT]:
             if keyBuff != pg.K_RIGHT:
                 tmpBlock.xy = point(tmpBlock.xy.x + 1, tmpBlock.xy.y)
                 keyBuff = pg.K_RIGHT
+                cli.sendMsg('d')
         elif keys[K_s]:
-            tmpBlock_2.xy = point(tmpBlock_2.xy.x, tmpBlock_2.xy.y + 1)
-            keyBuff_2 = None
+            if keyBuff_2 != pg.K_s:
+                tmpBlock_2.xy = point(tmpBlock_2.xy.x, tmpBlock_2.xy.y + 1)
+                keyBuff_2 = pg.K_s
         elif keys[K_a]:
             if keyBuff_2 != pg.K_a:
                 tmpBlock_2.xy = point(tmpBlock_2.xy.x - 1, tmpBlock_2.xy.y)
@@ -897,12 +945,103 @@ def process():
     pg.display.update()
     clock.tick(40)
 
+
+class Server(threading.Thread):
+    def __init__(self):  # 初始化和销毁对象函数.
+        threading.Thread.__init__(self)
+        self.ADDR = ('', 21567)
+        self.sock = socket(AF_INET, SOCK_DGRAM)
+        #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.sock.bind(self.ADDR)
+        self.thStop = False
+
+    def __del__(self):  # 销毁函数.
+        self.sock.close()
+
+    def transMsg(self):
+        global randint_2_next_1_1, randint_2_next_1_2, randint_2_next_2_1,randint_2_next_2_2,iamready
+        (data, curAddr) = self.sock.recvfrom(1024)
+        if data.find('s') != -1:
+            my_event = pg.event.Event(KEYARROWEVENT, {"key": K_s, "mod": 0, "unicode": u' '})
+            pg.event.post(my_event)
+        elif data.find('a') != -1:
+            my_event = pg.event.Event(KEYARROWEVENT, {"key": K_a, "mod": 0, "unicode": u' '})
+            pg.event.post(my_event)
+        elif data.find('d') != -1:
+            my_event = pg.event.Event(KEYARROWEVENT, {"key": K_d, "mod": 0, "unicode": u' '})
+            pg.event.post(my_event)
+        elif data.find('w') != -1:
+            my_event = pg.event.Event(KEYARROWEVENT, {"key": K_w, "mod": 0, "unicode": u' '})
+            pg.event.post(my_event)
+        elif data.find('r1') != -1:
+            iamready = 1
+            tmp, randint_2_next_1_1_str,randint_2_next_1_2_str = data.split('/')
+            randint_2_next_1_1 = int(randint_2_next_1_1_str)
+            randint_2_next_1_2 = int(randint_2_next_1_2_str)
+        elif data.find('r2') != -1:
+            iamready = 1
+            tmp, randint_2_next_2_1_str,randint_2_next_2_2_str = data.split('/')
+            randint_2_next_2_1 = int(randint_2_next_2_1_str)
+            randint_2_next_2_2 = int(randint_2_next_2_2_str)
+
+        print '< ' + data + ' address: ' + str(curAddr)
+
+    def run(self):
+        while not self.thStop:
+            self.transMsg()
+
+    def stop(self):
+        thStop = True
+
+
+class Client(threading.Thread):
+    def __init__(self, ip, name):
+        threading.Thread.__init__(self)
+        self.ADDR = (ip, 21567)
+        self.sock = socket(AF_INET, SOCK_DGRAM)
+        #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.uname = name
+        self.thStop = False
+
+    def __del__(self):
+        self.sock.close()
+
+    def sendMsg(self, msg):
+        self.sock.sendto(self.uname + ': ' + msg, self.ADDR)
+
+    def run(self):
+        while not self.thStop:
+            msg = raw_input()
+            if not msg.strip():
+                print '< No input!'
+                continue
+            print '> ' + self.uname + ':' + msg
+            self.sendMsg(msg)
+
+    def stop(self):
+        thStop = True
+
+
+def udp_main_loop():
+    global cli
+    #ip = raw_input('Please input target IP address:')
+    #name = raw_input('Please input your nick name:')
+    #ip = '<broadcast>' #'192.168.1.106'
+    ip = '192.168.1.106' #没有实现UDP广播的功能。需要在其他机器里修改此IP地址
+    #ip = '255.255.255.255'
+    name = 'c2'
+    cli = Client(ip, name)
+    ser = Server()
+    cli.start()
+    ser.start()
+
 def main():
     '''
     主程序
     '''
     getConf("elsfk.cfg")
     sysInit()
+    udp_main_loop()
     while True:
         process()
 
