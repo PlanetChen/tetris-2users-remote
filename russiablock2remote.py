@@ -20,11 +20,13 @@ author:lykyl
 createdate:2016.9.29
 '''
 
-import random, copy
+import random
+import copy
 import sys
 import pygame as pg
 import logging
 from pygame.locals import *
+import socket
 from socket import *
 import threading
 
@@ -36,6 +38,8 @@ FALLING_BLOCK = 1  # 下落中的方块标识，也就是活动方块。
 STATIC_BLOCK = 2  # 固实方块标识
 
 KEYARROWEVENT = USEREVENT + 1
+UDP_BROADCAST_EVENT = USEREVENT + 2
+WAIT_100_MS_BLOCK_EVENT = USEREVENT + 3
 
 #cxx
 X_2_ADD = (500 + 20) #FROM 1 USER TO 2 USERS.
@@ -103,6 +107,18 @@ randint_2_next_2_1 = 0
 randint_2_next_2_2 = 0
 
 iamready = 0
+restart_received = 0
+
+localIP = None
+targetIP = None
+
+sentcount = 0
+receivedcount = 0
+
+wait_for_2_nowBlock_0 = 0
+
+randint_2_next_2_1_tmp = 0
+randint_2_next_2_2_tmp = 0
 
 def printTxt(content, x, y, font, screen, color=(255, 255, 255)):
     '''显示文本
@@ -740,13 +756,18 @@ def process():
     global gameOver_2, nowBlock_2, nextBlock_2, speedBuff_2, backSurface_2, keyBuff_2 #cxx, pause_2
     #cxx
     global cli
-    global randint1,randint2
+    global randint1,randint2,restart_received
+    global sentcount,receivedcount
+    global wait_for_2_nowBlock_0
+    global randint_2_next_2_1,randint_2_next_2_2
 
     if nextBlock is None:
         randint_next_1_1 = random.randint(0, len(blocks) - 1)
         randint_next_1_2 = random.randint(0, 3)
         tmpstr = 'r1/' + str(randint_next_1_1) + '/' + str(randint_next_1_2)
-        cli.sendMsg(tmpstr)
+        print(tmpstr)
+        if targetIP != None:
+            cli.sendMsg(tmpstr)
         nextBlock = blockSprite(randint_next_1_1, randint_next_1_2, point(maxBlockWidth + 4, maxBlockHeight))
     if nowBlock is None:
         nowBlock = nextBlock.clone()
@@ -754,7 +775,10 @@ def process():
         randint_next_2_1 = random.randint(0, len(blocks) - 1)
         randint_next_2_2 = random.randint(0, 3)
         tmpstr = 'r2/' + str(randint_next_2_1) + '/' + str(randint_next_2_2)
-        cli.sendMsg(tmpstr)
+        if targetIP != None:
+            cli.sendMsg(tmpstr)
+        sentcount = sentcount + 1
+        #print('sentcount: ' + str(sentcount) +'//' + tmpstr)
         nextBlock = blockSprite(randint_next_2_1, randint_next_2_2, point(maxBlockWidth + 4, maxBlockHeight))
         # 每次生成新的下落方块形状时检测碰撞，如果新的方块形状一出现就发生碰撞，则显然玩家已经没有机会了。
         gameOver = checkDeany(nowBlock)
@@ -765,18 +789,25 @@ def process():
     #cxx
     if nextBlock_2 is None:
         if iamready == 1:
+            #print('nextBlock_2 == None and iamready == 1')
             nextBlock_2 = blockSprite_2(randint_2_next_1_1, randint_2_next_1_2,
                                         point(maxBlockWidth + 4, maxBlockHeight))
         else:
+            #print('nextBlock_2 == None and iamready == 0')
             nextBlock_2 = blockSprite_2(random.randint(0, len(blocks_2) - 1), random.randint(0, 3),
                                 point(maxBlockWidth + 4, maxBlockHeight))
     if nowBlock_2 is None:
         nowBlock_2 = nextBlock_2.clone()
         nowBlock_2.xy = point(maxBlockWidth // 2, 0)
+        #print('iamready: ' + str(iamready))
         if iamready == 1:
+            #print('nowBlock_2 == None and iamready == 1')
+            #print(str(randint_2_next_2_1) + ' / ' + str(randint_2_next_2_2))
             nextBlock_2 = blockSprite_2(randint_2_next_2_1, randint_2_next_2_2,
                                         point(maxBlockWidth + 4, maxBlockHeight))
+            print("middle 4 ?")
         else:
+            #print('nowBlock_2 == None and iamready == 0')
             nextBlock_2 = blockSprite_2(random.randint(0, len(blocks_2) - 1), random.randint(0, 3),
                                 point(maxBlockWidth + 4, maxBlockHeight))
         # 每次生成新的下落方块形状时检测碰撞，如果新的方块形状一出现就发生碰撞，则显然玩家已经没有机会了。
@@ -799,7 +830,7 @@ def process():
     第一部分，将退出、暂停、重新开始以及形状变换的操作以敲击事件处理。
     这样做的好处是只对敲击一次键盘做出处理，避免用户按住单一按键后程序反复处理影响操控，特别是形状变换操作，敲击一次键盘换变一次方向，玩家很容易控制。
     '''
-    pg.key.set_repeat()
+    pg.key.set_repeat(0,0)
 
     for event in pg.event.get():
 
@@ -817,7 +848,21 @@ def process():
             elif event.key == pg.K_a or event.key == pg.K_s or event.key == pg.K_d:
                 keyBuff_2 = None
          #cxx added
-
+        elif event.type == UDP_BROADCAST_EVENT:
+            sendUDPbroadcastMsg()
+        elif event.type == WAIT_100_MS_BLOCK_EVENT:
+            pg.time.set_timer(WAIT_100_MS_BLOCK_EVENT, 0)
+            randint_2_next_2_1 = randint_2_next_2_1_tmp
+            randint_2_next_2_2 = randint_2_next_2_2_tmp
+            if restart_received == 1:
+                restart_received = 0
+                sysInit()
+                gameOver = True
+                return
+            else:
+                nextBlock_2 = blockSprite_2(randint_2_next_2_1, randint_2_next_2_2,
+                                            point(maxBlockWidth + 4, maxBlockHeight))
+            print('middle 3?')
         elif event.type == KEYARROWEVENT:
             if event.key == pg.K_s:
                 tmpBlock_2.xy = point(tmpBlock_2.xy.x, tmpBlock_2.xy.y + 1)
@@ -827,11 +872,30 @@ def process():
                 tmpBlock_2.xy = point(tmpBlock_2.xy.x + 1, tmpBlock_2.xy.y)
             elif event.key == pg.K_w:
                 tmpBlock_2.chgDirection(0)
-
+            elif event.key == pg.K_b:
+                sysInit()
+                gameOver = True
+                sentcount = 0
+                receivedcount = 0
+                return
+            elif event.key == pg.K_p:
+                #cli.stop()
+                udp_client_loop(targetIP)
+            elif event.key == pg.K_r:
+                pg.time.set_timer(WAIT_100_MS_BLOCK_EVENT, 200)
         elif event.type == pg.KEYDOWN:
             if event.key == pg.K_ESCAPE:
                 pg.quit()
                 sys.exit()
+            elif event.key == pg.K_b:
+                sysInit()
+                if targetIP != None:
+                    cli.sendMsg('b') # sysInit and begin to restart
+                gameOver = True
+                sendUDPbroadcastMsg()
+                sentcount = 0
+                receivedcount = 0
+                return
             elif event.key == pg.K_RETURN:
                 if gameOver:
                     sysInit()
@@ -848,7 +912,8 @@ def process():
                 if event.key == pg.K_SPACE:
                     tmpBlock.chgDirection(1)
                 elif event.key == pg.K_UP:
-                    cli.sendMsg('w')
+                    if targetIP != None:
+                        cli.sendMsg('w')
                     tmpBlock.chgDirection(0)
             #cxx
                 elif event.key == pg.K_TAB:
@@ -868,19 +933,22 @@ def process():
 
         if keys[K_DOWN]:
             if keyBuff != pg.K_DOWN:
-                cli.sendMsg('s')
+                if targetIP != None:
+                    cli.sendMsg('s')
                 tmpBlock.xy = point(tmpBlock.xy.x, tmpBlock.xy.y + 1)
                 keyBuff = pg.K_DOWN
         elif keys[K_LEFT]:
             if keyBuff != pg.K_LEFT:
                 tmpBlock.xy = point(tmpBlock.xy.x - 1, tmpBlock.xy.y)
                 keyBuff = pg.K_LEFT
-                cli.sendMsg('a')
+                if targetIP != None:
+                    cli.sendMsg('a')
         elif keys[K_RIGHT]:
             if keyBuff != pg.K_RIGHT:
                 tmpBlock.xy = point(tmpBlock.xy.x + 1, tmpBlock.xy.y)
                 keyBuff = pg.K_RIGHT
-                cli.sendMsg('d')
+                if targetIP != None:
+                    cli.sendMsg('d')
         elif keys[K_s]:
             if keyBuff_2 != pg.K_s:
                 tmpBlock_2.xy = point(tmpBlock_2.xy.x, tmpBlock_2.xy.y + 1)
@@ -907,6 +975,8 @@ def process():
         speedBuff += 1
         if speedBuff >= fallSpeed:
             speedBuff = 0
+            if targetIP != None:
+                cli.sendMsg('z')
             tmpBlock = nowBlock.clone()
             tmpBlock.xy = point(nowBlock.xy.x, nowBlock.xy.y + 1)
             if not checkDeany(tmpBlock):
@@ -917,12 +987,17 @@ def process():
                 # 在自动下落过程中一但发生活动方块形状的碰撞，则将活动方块形状做固实处理，并检测是否有可消除的整行方块
                 updateStage(nowBlock, 2)
                 checkLine()
-                nowBlock = None
+                nowBlock = None  #如果此时，下落已经相碰撞，但还没收到对方传来的随机数来，还不能生成新的block？cxx
+
         else:
             updateStage(nowBlock, 1)
 
         #cxx
-        speedBuff_2 += 1
+        if targetIP != None:
+            pass
+        else:
+             speedBuff_2 += 1
+        #print('speedBuff_2: ' + str(speedBuff_2))
         if speedBuff_2 >= fallSpeed_2:
             speedBuff_2 = 0
             tmpBlock_2 = nowBlock_2.clone()
@@ -936,6 +1011,10 @@ def process():
                 updateStage_2(nowBlock_2, 2)
                 checkLine_2()
                 nowBlock_2 = None
+
+                wait_for_2_nowBlock_0 = 1
+                print("middle 1 ?")
+                #print('current received count: ' + str(receivedcount) +'  nowBlock_2 == None')
         else:
             updateStage_2(nowBlock_2, 1)
         #cxx
@@ -948,20 +1027,27 @@ def process():
 
 class Server(threading.Thread):
     def __init__(self):  # 初始化和销毁对象函数.
+
         threading.Thread.__init__(self)
         self.ADDR = ('', 21567)
         self.sock = socket(AF_INET, SOCK_DGRAM)
-        #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        #socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         self.sock.bind(self.ADDR)
         self.thStop = False
+        print(str(self.ADDR))
+        #print(socket.gethostbyname(self.sock.gethostname()))  # 得到本地ip
 
     def __del__(self):  # 销毁函数.
         self.sock.close()
 
     def transMsg(self):
-        global randint_2_next_1_1, randint_2_next_1_2, randint_2_next_2_1,randint_2_next_2_2,iamready
+        global randint_2_next_1_1, randint_2_next_1_2, randint_2_next_2_1_tmp,randint_2_next_2_2_tmp,iamready
+        global gameOver, restart_received,targetIP,receivedcount, speedBuff_2
+
         (data, curAddr) = self.sock.recvfrom(1024)
-        if data.find('s') != -1:
+        if localIP == curAddr[0]: #if send from local IP, pass
+            pass
+        elif data.find('s') != -1:
             my_event = pg.event.Event(KEYARROWEVENT, {"key": K_s, "mod": 0, "unicode": u' '})
             pg.event.post(my_event)
         elif data.find('a') != -1:
@@ -973,18 +1059,36 @@ class Server(threading.Thread):
         elif data.find('w') != -1:
             my_event = pg.event.Event(KEYARROWEVENT, {"key": K_w, "mod": 0, "unicode": u' '})
             pg.event.post(my_event)
+        elif data.find('b') != -1:
+            restart_received = 1
+            #my_event = pg.event.Event(KEYARROWEVENT, {"key": K_b, "mod": 0, "unicode": u' '})
+            #pg.event.post(my_event)
         elif data.find('r1') != -1:
             iamready = 1
             tmp, randint_2_next_1_1_str,randint_2_next_1_2_str = data.split('/')
             randint_2_next_1_1 = int(randint_2_next_1_1_str)
             randint_2_next_1_2 = int(randint_2_next_1_2_str)
+        elif data.find('z') != -1:
+            speedBuff_2 = fallSpeed_2 * 2
+
         elif data.find('r2') != -1:
             iamready = 1
             tmp, randint_2_next_2_1_str,randint_2_next_2_2_str = data.split('/')
-            randint_2_next_2_1 = int(randint_2_next_2_1_str)
-            randint_2_next_2_2 = int(randint_2_next_2_2_str)
+            receivedcount = receivedcount + 1
+            randint_2_next_2_1_tmp = int(randint_2_next_2_1_str)
+            randint_2_next_2_2_tmp = int(randint_2_next_2_2_str)
+            my_event = pg.event.Event(KEYARROWEVENT, {"key": K_r, "mod": 0, "unicode": u' '})
+            pg.event.post(my_event)
+            print('middle 2?')
+        elif data.find('hello') != -1:
+            if  targetIP == curAddr[0]:# just receive the first time message
+                pass
+            else:
+                targetIP = curAddr[0]
+                my_event = pg.event.Event(KEYARROWEVENT, {"key": K_p, "mod": 0, "unicode": u' '})
+                pg.event.post(my_event)
 
-        print '< ' + data + ' address: ' + str(curAddr)
+        #print '< ' + data + ' from address: ' + str(curAddr)
 
     def run(self):
         while not self.thStop:
@@ -999,7 +1103,7 @@ class Client(threading.Thread):
         threading.Thread.__init__(self)
         self.ADDR = (ip, 21567)
         self.sock = socket(AF_INET, SOCK_DGRAM)
-        #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        #socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         self.uname = name
         self.thStop = False
 
@@ -1022,6 +1126,16 @@ class Client(threading.Thread):
         thStop = True
 
 
+def udp_server_loop():
+    ser = Server()
+    ser.start()
+
+def udp_client_loop(ipaddress):
+    global cli
+    name = 'c2'
+    cli = Client(ipaddress, name)
+    cli.start()
+
 def udp_main_loop():
     global cli
     #ip = raw_input('Please input target IP address:')
@@ -1035,13 +1149,27 @@ def udp_main_loop():
     cli.start()
     ser.start()
 
+def sendUDPbroadcastMsg():
+    global localIP
+    addr = ('<broadcast>', 21567)
+    s = socket(AF_INET, SOCK_DGRAM)
+    s.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+    localIP = gethostbyname(gethostname())
+    #print('localIP: ' + localIP)
+    s.sendto("hello", addr)
+    s.sendto("hello", addr)
+
 def main():
     '''
     主程序
     '''
     getConf("elsfk.cfg")
     sysInit()
-    udp_main_loop()
+    udp_server_loop()
+    sendUDPbroadcastMsg()
+    #udp_client_loop("192.168.1.1")
+    pg.time.set_timer(UDP_BROADCAST_EVENT, 1000*60)
+
     while True:
         process()
 
