@@ -347,7 +347,7 @@ def sysInit():
     pg.init()
     screen = pg.display.set_mode((500 + X_2_ADD, 550))
     backSurface = pg.Surface((screen.get_rect().width, screen.get_rect().height))
-    pg.display.set_caption("Tetris by two computers by UDP")
+    pg.display.set_caption("Tetris by two local computers by UDP")
     clock = pg.time.Clock()
     pg.mouse.set_visible(False)
 
@@ -851,6 +851,7 @@ def process():
         elif event.type == UDP_BROADCAST_EVENT:
             sendUDPbroadcastMsg()
         elif event.type == WAIT_100_MS_BLOCK_EVENT:
+            # currently no useful
             pg.time.set_timer(WAIT_100_MS_BLOCK_EVENT, 0)
             randint_2_next_2_1 = randint_2_next_2_1_tmp
             randint_2_next_2_2 = randint_2_next_2_2_tmp
@@ -862,7 +863,9 @@ def process():
             else:
                 nextBlock_2 = blockSprite_2(randint_2_next_2_1, randint_2_next_2_2,
                                             point(maxBlockWidth + 4, maxBlockHeight))
-            print('middle 3?')
+                
+                return
+          
         elif event.type == KEYARROWEVENT:
             if event.key == pg.K_s:
                 tmpBlock_2.xy = point(tmpBlock_2.xy.x, tmpBlock_2.xy.y + 1)
@@ -875,6 +878,7 @@ def process():
             elif event.key == pg.K_b:
                 sysInit()
                 gameOver = True
+                gameOver_2 = True
                 sentcount = 0
                 receivedcount = 0
                 return
@@ -882,7 +886,24 @@ def process():
                 #cli.stop()
                 udp_client_loop(targetIP)
             elif event.key == pg.K_r:
-                pg.time.set_timer(WAIT_100_MS_BLOCK_EVENT, 200)
+                #pg.time.set_timer(WAIT_100_MS_BLOCK_EVENT, 200)
+                randint_2_next_2_1 = randint_2_next_2_1_tmp
+                randint_2_next_2_2 = randint_2_next_2_2_tmp
+  
+                if restart_received == 1:
+                    restart_received = 0
+                    sysInit()
+                    gameOver = True  # cxxcxx
+                    gameOver_2 = True
+     
+                    return
+                else:
+                    nextBlock_2 = blockSprite_2(randint_2_next_2_1, randint_2_next_2_2,
+                                                point(maxBlockWidth + 4, maxBlockHeight))
+                    # nowBlock_2 = None  #cxxcxx
+     
+                    return
+                    # print('middle 3?')
         elif event.type == pg.KEYDOWN:
             if event.key == pg.K_ESCAPE:
                 pg.quit()
@@ -892,6 +913,7 @@ def process():
                 if targetIP != None:
                     cli.sendMsg('b') # sysInit and begin to restart
                 gameOver = True
+                gameOver_2 = True
                 sendUDPbroadcastMsg()
                 sentcount = 0
                 receivedcount = 0
