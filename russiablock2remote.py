@@ -108,6 +108,7 @@ randint_2_next_2_2 = 0
 
 iamready = 0
 restart_received = 0
+restart_key_pressed = 0
 
 localIP = None
 targetIP = None
@@ -756,7 +757,7 @@ def process():
     global gameOver_2, nowBlock_2, nextBlock_2, speedBuff_2, backSurface_2, keyBuff_2 #cxx, pause_2
     #cxx
     global cli
-    global randint1,randint2,restart_received
+    global randint1,randint2,restart_received,restart_key_pressed
     global sentcount,receivedcount
     global wait_for_2_nowBlock_0
     global randint_2_next_2_1,randint_2_next_2_2
@@ -769,6 +770,7 @@ def process():
         if targetIP != None:
             cli.sendMsg(tmpstr)
         nextBlock = blockSprite(randint_next_1_1, randint_next_1_2, point(maxBlockWidth + 4, maxBlockHeight))
+        print('send: ' + tmpstr)
     if nowBlock is None:
         nowBlock = nextBlock.clone()
         nowBlock.xy = point(maxBlockWidth // 2, 0)
@@ -778,6 +780,7 @@ def process():
         if targetIP != None:
             cli.sendMsg(tmpstr)
         sentcount = sentcount + 1
+        print('send: ' + tmpstr)
         #print('sentcount: ' + str(sentcount) +'//' + tmpstr)
         nextBlock = blockSprite(randint_next_2_1, randint_next_2_2, point(maxBlockWidth + 4, maxBlockHeight))
         # 每次生成新的下落方块形状时检测碰撞，如果新的方块形状一出现就发生碰撞，则显然玩家已经没有机会了。
@@ -787,7 +790,9 @@ def process():
             updateStage(nowBlock, 2)
 
     #cxx
-    if nextBlock_2 is None:
+    if restart_key_pressed == 1:
+        pass
+    elif nextBlock_2 is None:
         if iamready == 1:
             #print('nextBlock_2 == None and iamready == 1')
             nextBlock_2 = blockSprite_2(randint_2_next_1_1, randint_2_next_1_2,
@@ -796,7 +801,9 @@ def process():
             #print('nextBlock_2 == None and iamready == 0')
             nextBlock_2 = blockSprite_2(random.randint(0, len(blocks_2) - 1), random.randint(0, 3),
                                 point(maxBlockWidth + 4, maxBlockHeight))
-    if nowBlock_2 is None:
+    if restart_key_pressed == 1:
+        pass
+    elif nowBlock_2 is None:
         nowBlock_2 = nextBlock_2.clone()
         nowBlock_2.xy = point(maxBlockWidth // 2, 0)
         #print('iamready: ' + str(iamready))
@@ -822,7 +829,10 @@ def process():
     '''
     tmpBlock = nowBlock.clone()  # 影子方块形状
     #cxx
-    tmpBlock_2 = nowBlock_2.clone()  # 影子方块形状
+    if restart_key_pressed == 1:
+        pass
+    else:
+        tmpBlock_2 = nowBlock_2.clone()  # 影子方块形状
     #cxx
     '''
     处理用户输入
@@ -852,19 +862,7 @@ def process():
             sendUDPbroadcastMsg()
         elif event.type == WAIT_100_MS_BLOCK_EVENT:
             # currently no useful
-            pg.time.set_timer(WAIT_100_MS_BLOCK_EVENT, 0)
-            randint_2_next_2_1 = randint_2_next_2_1_tmp
-            randint_2_next_2_2 = randint_2_next_2_2_tmp
-            if restart_received == 1:
-                restart_received = 0
-                sysInit()
-                gameOver = True
-                return
-            else:
-                nextBlock_2 = blockSprite_2(randint_2_next_2_1, randint_2_next_2_2,
-                                            point(maxBlockWidth + 4, maxBlockHeight))
-                
-                return
+            pass
           
         elif event.type == KEYARROWEVENT:
             if event.key == pg.K_s:
@@ -898,8 +896,10 @@ def process():
      
                     return
                 else:
-                    nextBlock_2 = blockSprite_2(randint_2_next_2_1, randint_2_next_2_2,
-                                                point(maxBlockWidth + 4, maxBlockHeight))
+                    if ( restart_key_pressed == 1):
+                        restart_key_pressed = 0
+                    #cxx test
+                    #nextBlock_2 = blockSprite_2(randint_2_next_2_1, randint_2_next_2_2, point(maxBlockWidth + 4, maxBlockHeight))
                     # nowBlock_2 = None  #cxxcxx
      
                     return
@@ -917,6 +917,8 @@ def process():
                 sendUDPbroadcastMsg()
                 sentcount = 0
                 receivedcount = 0
+                restart_key_pressed = 1
+                print('press b!')
                 return
             elif event.key == pg.K_RETURN:
                 if gameOver:
@@ -988,9 +990,12 @@ def process():
             updateStage(nowBlock, 0)
             nowBlock = tmpBlock.clone()
 
-        if not checkDeany_2(tmpBlock_2):
-            updateStage_2(nowBlock_2, 0)
-            nowBlock_2 = tmpBlock_2.clone()
+        if restart_key_pressed == 1:
+            pass
+        else:
+            if not checkDeany_2(tmpBlock_2):
+                updateStage_2(nowBlock_2, 0)
+                nowBlock_2 = tmpBlock_2.clone()
 
 
         # 处理自动下落
@@ -1015,31 +1020,38 @@ def process():
             updateStage(nowBlock, 1)
 
         #cxx
-        if targetIP != None:
+        if restart_key_pressed == 1:
             pass
         else:
-             speedBuff_2 += 1
-        #print('speedBuff_2: ' + str(speedBuff_2))
-        if speedBuff_2 >= fallSpeed_2:
-            speedBuff_2 = 0
-            tmpBlock_2 = nowBlock_2.clone()
-            tmpBlock_2.xy = point(nowBlock_2.xy.x, nowBlock_2.xy.y + 1)
-            if not checkDeany_2(tmpBlock_2):
-                updateStage_2(nowBlock_2, 0)
-                nowBlock_2 = tmpBlock_2.clone()
-                updateStage_2(nowBlock_2, 1)
+            if targetIP != None:
+                pass
             else:
-                # 在自动下落过程中一但发生活动方块形状的碰撞，则将活动方块形状做固实处理，并检测是否有可消除的整行方块
-                updateStage_2(nowBlock_2, 2)
-                checkLine_2()
-                nowBlock_2 = None
-
-                wait_for_2_nowBlock_0 = 1
-                print("middle 1 ?")
-                #print('current received count: ' + str(receivedcount) +'  nowBlock_2 == None')
+                 speedBuff_2 += 1
+        #print('speedBuff_2: ' + str(speedBuff_2))
+        if restart_key_pressed == 1:
+            pass
         else:
-            updateStage_2(nowBlock_2, 1)
-        #cxx
+            if speedBuff_2 >= fallSpeed_2:
+                speedBuff_2 = 0
+                tmpBlock_2 = nowBlock_2.clone()
+                tmpBlock_2.xy = point(nowBlock_2.xy.x, nowBlock_2.xy.y + 1)
+                if not checkDeany_2(tmpBlock_2):
+                    updateStage_2(nowBlock_2, 0)
+                    nowBlock_2 = tmpBlock_2.clone()
+                    updateStage_2(nowBlock_2, 1)
+                else:
+                    # 在自动下落过程中一但发生活动方块形状的碰撞，则将活动方块形状做固实处理，并检测是否有可消除的整行方块
+                    updateStage_2(nowBlock_2, 2)
+                    checkLine_2()
+                    nowBlock_2 = None
+
+                    wait_for_2_nowBlock_0 = 1
+                    print("middle 1 ?")
+                    print('nowBlock_2 is None')
+                    #print('current received count: ' + str(receivedcount) +'  nowBlock_2 == None')
+            else:
+                updateStage_2(nowBlock_2, 1)
+            #cxx
 
     drawStage(backSurface)
     screen.blit(backSurface, (0, 0))
@@ -1065,6 +1077,7 @@ class Server(threading.Thread):
     def transMsg(self):
         global randint_2_next_1_1, randint_2_next_1_2, randint_2_next_2_1_tmp,randint_2_next_2_2_tmp,iamready
         global gameOver, restart_received,targetIP,receivedcount, speedBuff_2
+        global nowBlock_2
 
         (data, curAddr) = self.sock.recvfrom(1024)
         if localIP == curAddr[0]: #if send from local IP, pass
@@ -1087,6 +1100,7 @@ class Server(threading.Thread):
             #pg.event.post(my_event)
         elif data.find('r1') != -1:
             iamready = 1
+            print('received: ' + data)
             tmp, randint_2_next_1_1_str,randint_2_next_1_2_str = data.split('/')
             randint_2_next_1_1 = int(randint_2_next_1_1_str)
             randint_2_next_1_2 = int(randint_2_next_1_2_str)
@@ -1095,6 +1109,8 @@ class Server(threading.Thread):
 
         elif data.find('r2') != -1:
             iamready = 1
+            print('received: ' + data)
+            print('nowBlock_2 == None?: ' + str(nowBlock_2))
             tmp, randint_2_next_2_1_str,randint_2_next_2_2_str = data.split('/')
             receivedcount = receivedcount + 1
             randint_2_next_2_1_tmp = int(randint_2_next_2_1_str)
