@@ -790,7 +790,7 @@ def process():
             updateStage(nowBlock, 2)
 
     #cxx
-    if restart_key_pressed == 1:
+    if restart_key_pressed == 1 or wait_for_2_nowBlock_0 == 1:
         pass
     elif nextBlock_2 is None:
         if iamready == 1:
@@ -801,7 +801,7 @@ def process():
             #print('nextBlock_2 == None and iamready == 0')
             nextBlock_2 = blockSprite_2(random.randint(0, len(blocks_2) - 1), random.randint(0, 3),
                                 point(maxBlockWidth + 4, maxBlockHeight))
-    if restart_key_pressed == 1:
+    if restart_key_pressed == 1 or wait_for_2_nowBlock_0 ==1 :
         pass
     elif nowBlock_2 is None:
         nowBlock_2 = nextBlock_2.clone()
@@ -829,7 +829,7 @@ def process():
     '''
     tmpBlock = nowBlock.clone()  # 影子方块形状
     #cxx
-    if restart_key_pressed == 1:
+    if restart_key_pressed == 1 or wait_for_2_nowBlock_0 == 1:
         pass
     else:
         tmpBlock_2 = nowBlock_2.clone()  # 影子方块形状
@@ -898,6 +898,8 @@ def process():
                 else:
                     if ( restart_key_pressed == 1):
                         restart_key_pressed = 0
+                    if wait_for_2_nowBlock_0 == 1:
+                        wait_for_2_nowBlock_0 = 0
                     #cxx test
                     #nextBlock_2 = blockSprite_2(randint_2_next_2_1, randint_2_next_2_2, point(maxBlockWidth + 4, maxBlockHeight))
                     # nowBlock_2 = None  #cxxcxx
@@ -990,7 +992,7 @@ def process():
             updateStage(nowBlock, 0)
             nowBlock = tmpBlock.clone()
 
-        if restart_key_pressed == 1:
+        if restart_key_pressed == 1 or wait_for_2_nowBlock_0 == 1:
             pass
         else:
             if not checkDeany_2(tmpBlock_2):
@@ -1020,7 +1022,7 @@ def process():
             updateStage(nowBlock, 1)
 
         #cxx
-        if restart_key_pressed == 1:
+        if restart_key_pressed == 1 or wait_for_2_nowBlock_0 == 1 :
             pass
         else:
             if targetIP != None:
@@ -1028,7 +1030,7 @@ def process():
             else:
                  speedBuff_2 += 1
         #print('speedBuff_2: ' + str(speedBuff_2))
-        if restart_key_pressed == 1:
+        if restart_key_pressed == 1 or wait_for_2_nowBlock_0 == 1:
             pass
         else:
             if speedBuff_2 >= fallSpeed_2:
