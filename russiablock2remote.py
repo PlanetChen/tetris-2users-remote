@@ -1,5 +1,6 @@
 ﻿# -*- coding:utf-8 -*-
 '''
+test2 20180223
 test 20180223
 经典俄罗斯方块
 游戏基于python2.7、pygame1.9.2b8编写。
