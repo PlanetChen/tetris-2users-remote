@@ -1,4 +1,4 @@
-## _*_ codd: utf-8 _*_
+## _*_ coding:  utf-8 _*_
 from socket import *
 import threading
 
