@@ -2,6 +2,7 @@
 from socket import *
 import threading
 
+#test 2021.02.05 23.08
 
 class Server(threading.Thread):
     def __init__(self):  # 初始化和销毁对象函数.
